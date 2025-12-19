@@ -5,6 +5,7 @@ import (
 	journalparser "journal-parser/pkg/journal-parser"
 	"os"
 	"strconv"
+	"time"
 )
 
 func bannerOutput() {
@@ -71,12 +72,13 @@ func main() {
 		printHelpMessage()
 		return
 	}
-
+	output := time.Now().Format("./2010-01-02_15-04-05")
 	fmt.Println("Mode")
 	fmt.Println("Target: ", target)
-	fmt.Println("Partition:", partition)
+	fmt.Println("Partition: ", partition)
+	fmt.Println("Output: ", output)
 	fmt.Println("")
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(target, partition)
+	jp := journalparser.NewJournalParser(target, partition, output)
 	jp.Parse()
 }

@@ -14,18 +14,33 @@ type JournalParser struct {
 	FileQueueMu      *sync.Mutex
 	FileQueue        []string
 	WG               *sync.WaitGroup
+	OutputDirectory  string
 }
 
-func NewJournalParser(target string, partition int) *JournalParser {
+func NewJournalParser(target string, partition int, output string) *JournalParser {
 	return &JournalParser{
 		Target:           target,
 		Partition:        partition,
 		DirectoryQueue:   []string{},
 		FileQueue:        []string{},
+		OutputDirectory:  output,
 		DirectoryQueueMu: new(sync.Mutex),
 		FileQueueMu:      new(sync.Mutex),
 		WG:               new(sync.WaitGroup),
 	}
+}
+
+func (jp *JournalParser) createOutputDirectoryAndDatabaseFile() error {
+	err := os.Mkdir("./"+jp.OutputDirectory, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create output directory: %v", err)
+	}
+
+	err = os.WriteFile("./"+jp.OutputDirectory+"/database.db", []byte(""), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create database file: %v", err)
+	}
+	return nil
 }
 
 func (jp *JournalParser) Parse() {
@@ -34,10 +49,16 @@ func (jp *JournalParser) Parse() {
 		fmt.Println("Error: ", err)
 		return
 	}
+	fmt.Println("Successfully create output directory: ", jp.OutputDirectory)
 	if isDir {
 		jp.DirectoryQueue = append(jp.DirectoryQueue, jp.Target)
 	} else {
 		jp.FileQueue = append(jp.FileQueue, jp.Target)
+	}
+	err = jp.createOutputDirectoryAndDatabaseFile()
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
 	}
 
 	// Parse directories
