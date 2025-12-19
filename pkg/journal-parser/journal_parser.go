@@ -40,6 +40,57 @@ func (jp *JournalParser) Parse() {
 		jp.FileQueue = append(jp.FileQueue, jp.Target)
 	}
 
+	// Parse directories
+	for {
+		jp.DirectoryQueueMu.Lock()
+		dirQueueLen := len(jp.DirectoryQueue)
+		if dirQueueLen == 0 {
+			break
+		}
+		dirName := jp.DirectoryQueue[0]
+		if dirQueueLen > 1 {
+			jp.DirectoryQueue = jp.DirectoryQueue[1:]
+		} else {
+			jp.DirectoryQueue = []string{}
+		}
+		jp.DirectoryQueueMu.Unlock()
+		jp.WG.Add(1)
+		go func() {
+			defer jp.WG.Done()
+
+			err := jp.ParseDirectory(dirName)
+			if err != nil {
+				fmt.Println("Error: ", err)
+			}
+		}()
+	}
+	jp.WG.Wait()
+
+	// Parse files
+	for {
+		jp.FileQueueMu.Lock()
+		fileQueueLen := len(jp.FileQueue)
+		if fileQueueLen == 0 {
+			break
+		}
+		fileName := jp.FileQueue[0]
+		if fileQueueLen > 1 {
+			jp.FileQueue = jp.FileQueue[1:]
+		} else {
+			jp.FileQueue = []string{}
+		}
+		jp.FileQueueMu.Unlock()
+		jp.WG.Add(1)
+		go func() {
+			defer jp.WG.Done()
+			err := jp.ParseFile(fileName)
+			if err != nil {
+				fmt.Println("Error: ", err)
+			}
+		}()
+	}
+	jp.WG.Wait()
+	fmt.Println("Done")
 }
 
 func (jp *JournalParser) isDirectory(path string) (bool, error) {
