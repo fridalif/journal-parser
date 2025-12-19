@@ -123,7 +123,8 @@ func main() {
 	}
 	fmt.Println("SQL Tables created")
 
+	exporter := journalparser.NewExporter(exportSettings.CLI, exportSettings.JSON, exportSettings.CSV, partition, output)
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(target, partition, output, exportSettings, repository)
+	jp := journalparser.NewJournalParser(target, partition, output, exporter, repository)
 	jp.Parse()
 }

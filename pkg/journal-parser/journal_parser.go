@@ -23,10 +23,10 @@ type JournalParser struct {
 	FileQueue       []string
 	OutputDirectory string
 	repo            JournalRepositoryI
-	ExportSettings  ExportSettings
+	Exporter        ExporterI
 }
 
-func NewJournalParser(target string, partition int, output string, exportSettings ExportSettings, repo JournalRepositoryI) *JournalParser {
+func NewJournalParser(target string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
 	return &JournalParser{
 		Target:          target,
 		Partition:       partition,
@@ -34,7 +34,7 @@ func NewJournalParser(target string, partition int, output string, exportSetting
 		FileQueue:       []string{},
 		OutputDirectory: output,
 		repo:            repo,
-		ExportSettings:  exportSettings,
+		Exporter:        exporter,
 	}
 }
 
