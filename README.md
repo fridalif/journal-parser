@@ -1,1 +1,1 @@
-# journal-recursive-parser
+# journal-parser
