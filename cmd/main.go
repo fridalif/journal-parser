@@ -25,8 +25,8 @@ func printHelpMessage() {
 	fmt.Println("")
 	fmt.Println("Flags:")
 	fmt.Println("  -h, --help    Display this help message")
-	fmt.Println("  -t, --target <Directory or filename>  The target partition to parse (no partition by default)")
-	fmt.Println("  -p, --partition <Number>  Max strings per file")
+	fmt.Println("  -t, --target <Directory or filename>  The target to parse")
+	fmt.Println("  -p, --partition <Number>  Max strings per file (no partition by default)")
 }
 
 func main() {
