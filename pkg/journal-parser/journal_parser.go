@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -140,7 +141,25 @@ func (jp *JournalParser) isDirectory(path string) (bool, error) {
 }
 
 func (jp *JournalParser) ParseDirectory(directory string) error {
-	fmt.Println("Directory:", directory)
+	fmt.Println("Parsing Directory:", directory)
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return fmt.Errorf("failed to parse directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(directory, entry.Name())
+		isDir, err := jp.isDirectory(fullPath)
+		if err != nil {
+			return err
+		}
+
+		if isDir {
+			jp.DirectoryQueue = append(jp.DirectoryQueue, fullPath)
+		} else {
+			jp.FileQueue = append(jp.FileQueue, fullPath)
+		}
+	}
 	return nil
 }
 
