@@ -24,6 +24,7 @@ type JournalParser struct {
 	OutputDirectory string
 	repo            JournalRepositoryI
 	Exporter        ExporterI
+	entriesCounter  int
 }
 
 func NewJournalParser(target string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
@@ -35,6 +36,7 @@ func NewJournalParser(target string, partition int, output string, exporter Expo
 		OutputDirectory: output,
 		repo:            repo,
 		Exporter:        exporter,
+		entriesCounter:  0,
 	}
 }
 
@@ -98,7 +100,44 @@ func (jp *JournalParser) Parse() {
 		}
 	}
 
-	fmt.Println("Parsing Done!")
+	fmt.Println("Parsing Done! Starting Export...")
+
+	if jp.Partition == 0 {
+		entries, err := jp.repo.GetEntriesUnlimited()
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+
+		err = jp.Exporter.Export(entries)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+		fmt.Println("Export Done!")
+		return
+	}
+
+	for i := 0; i < jp.entriesCounter; i += jp.Partition {
+		fmt.Printf("Export Progress: %d/%d\n", i, jp.entriesCounter)
+		entries, err := jp.repo.GetEntriesLimited(jp.Partition, i)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			err = jp.repo.CheckAliveAfterError()
+			if err != nil {
+				fmt.Println("Fatal Error Lost connection with Database: ", err)
+				return
+			}
+			continue
+		}
+
+		err = jp.Exporter.Export(entries)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			continue
+		}
+	}
+	fmt.Println("Export Done!")
 }
 
 func (jp *JournalParser) isDirectory(path string) (bool, error) {
@@ -207,6 +246,7 @@ func (jp *JournalParser) ParseFile(filename string) error {
 			if err != nil {
 				fmt.Println("Failed insert entry to database: ", err.Error())
 			}
+			jp.entriesCounter += len(entries)
 			entries = []JournalEntry{}
 		}
 	}
@@ -215,5 +255,6 @@ func (jp *JournalParser) ParseFile(filename string) error {
 		fmt.Println("Failed insert entry to database: ", err.Error())
 		return err
 	}
+	jp.entriesCounter += len(entries)
 	return nil
 }
