@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	journalparser "journal-parser/pkg/journal-parser"
 	"os"
 	"strconv"
 )
@@ -76,4 +77,6 @@ func main() {
 	fmt.Println("Partition:", partition)
 	fmt.Println("")
 	fmt.Println("Starting parsing...")
+	jp := journalparser.NewJournalParser(target, partition)
+	jp.Parse()
 }
