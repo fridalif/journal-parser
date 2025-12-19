@@ -104,7 +104,7 @@ func main() {
 
 	err := os.Mkdir("./"+output, 0755)
 	if err != nil {
-		fmt.Println("Failed to create output directory: %v", err)
+		fmt.Println("Failed to create output directory: ", err)
 		return
 	}
 

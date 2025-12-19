@@ -65,6 +65,8 @@ func (r *journalRepository) Close() {
 }
 
 func (r *journalRepository) CreateTables() error {
+	r.dbMutex.Lock()
+	defer r.dbMutex.Unlock()
 	query := `
 		CREATE TABLE IF NOT EXISTS journal (
 			id BIGINT PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +93,8 @@ func (r *journalRepository) CreateTables() error {
 }
 
 func (r *journalRepository) GetEntriesLimited(limit int, offset int) ([]JournalEntry, error) {
+	r.dbMutex.Lock()
+	defer r.dbMutex.Unlock()
 	query := `
 		SELECT journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields
 		FROM journal
@@ -120,9 +124,50 @@ func (r *journalRepository) GetEntriesLimited(limit int, offset int) ([]JournalE
 }
 
 func (r *journalRepository) GetEntriesUnlimited() ([]JournalEntry, error) {
-
+	r.dbMutex.Lock()
+	defer r.dbMutex.Unlock()
+	query := `
+		SELECT journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields
+		FROM journal
+		ORDER BY timestamp ASC
+	`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []JournalEntry
+	for rows.Next() {
+		var entry JournalEntryFromDB
+		err := rows.Scan(&entry.JournalFile, &entry.Timestamp, &entry.Hostname, &entry.Unit, &entry.Message, &entry.Priority, &entry.SyslogPID, &entry.SyslogIdent, &entry.Fields)
+		if err != nil {
+			return nil, err
+		}
+		parsedEntry, err := entry.ToJournalEntry()
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, parsedEntry)
+	}
+	return entries, nil
 }
 
 func (r *journalRepository) InsertEntries(entries []JournalEntry) error {
-
+	if len(entries) == 0 {
+		return nil
+	}
+	for _, entry := range entries {
+		journalEntryForDb, err := entry.ToJournalEntryFromDB()
+		if err != nil {
+			return err
+		}
+		r.dbMutex.Lock()
+		defer r.dbMutex.Unlock()
+		_, err = r.db.Exec("INSERT INTO journal (journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			journalEntryForDb.JournalFile, journalEntryForDb.Timestamp, journalEntryForDb.Hostname, journalEntryForDb.Unit, journalEntryForDb.Message, journalEntryForDb.Priority, journalEntryForDb.SyslogPID, journalEntryForDb.SyslogIdent, journalEntryForDb.Fields)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

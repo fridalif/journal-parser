@@ -213,6 +213,7 @@ func (jp *JournalParser) ParseFile(filename string) error {
 	err = jp.repo.InsertEntries(entries)
 	if err != nil {
 		fmt.Println("Failed insert entry to database: ", err.Error())
+		return err
 	}
 	return nil
 }
