@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type JournalParser struct {
