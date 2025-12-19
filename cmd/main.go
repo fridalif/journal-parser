@@ -24,9 +24,12 @@ func printHelpMessage() {
 	fmt.Println("Usage: journalparser [FLAGS]")
 	fmt.Println("")
 	fmt.Println("Flags:")
-	fmt.Println("  -h, --help    Display this help message")
-	fmt.Println("  -t, --target <Directory or filename>  The target to parse")
-	fmt.Println("  -p, --partition <Number>  Max strings per file (no partition by default)")
+	fmt.Println("  	-h, --help    Display this help message")
+	fmt.Println("  	-t, --target <Directory or filename>  The target to parse")
+	fmt.Println("  	-p, --partition <Number>  Max strings per file (no partition by default)")
+	fmt.Println("  	--csv Export output to csv")
+	fmt.Println("	--json Export output to json")
+	fmt.Println("	--cli Export output to cli")
 }
 
 func main() {
@@ -34,6 +37,11 @@ func main() {
 	argsLen := len(os.Args)
 	target := ""
 	partition := 0
+	exportSettings := journalparser.ExportSettings{
+		CSV:  false,
+		JSON: false,
+		CLI:  false,
+	}
 	for i := 0; i < argsLen; i++ {
 		if os.Args[i] == "--help" || os.Args[i] == "-h" {
 			printHelpMessage()
@@ -65,6 +73,18 @@ func main() {
 			i += 1
 			continue
 		}
+		if os.Args[i] == "--csv" {
+			exportSettings.CSV = true
+			continue
+		}
+		if os.Args[i] == "--json" {
+			exportSettings.JSON = true
+			continue
+		}
+		if os.Args[i] == "--cli" {
+			exportSettings.CLI = true
+			continue
+		}
 	}
 
 	if target == "" {
@@ -79,6 +99,6 @@ func main() {
 	fmt.Println("Output: ", output)
 	fmt.Println("")
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(target, partition, output)
+	jp := journalparser.NewJournalParser(target, partition, output, exportSettings)
 	jp.Parse()
 }

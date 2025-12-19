@@ -11,6 +11,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type ExportSettings struct {
+	CSV  bool
+	JSON bool
+	CLI  bool
+}
+
 type JournalParser struct {
 	Target          string
 	Partition       int
@@ -18,9 +24,10 @@ type JournalParser struct {
 	FileQueue       []string
 	OutputDirectory string
 	DBConn          *sql.DB
+	ExportSettings  ExportSettings
 }
 
-func NewJournalParser(target string, partition int, output string) *JournalParser {
+func NewJournalParser(target string, partition int, output string, exportSettings ExportSettings) *JournalParser {
 	return &JournalParser{
 		Target:          target,
 		Partition:       partition,
@@ -28,6 +35,7 @@ func NewJournalParser(target string, partition int, output string) *JournalParse
 		FileQueue:       []string{},
 		OutputDirectory: output,
 		DBConn:          nil,
+		ExportSettings:  exportSettings,
 	}
 }
 
