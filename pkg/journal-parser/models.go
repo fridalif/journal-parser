@@ -36,16 +36,16 @@ func (je JournalEntry) ToJournalEntryFromDB() (JournalEntryFromDB, error) {
 }
 
 type JournalEntryFromDB struct {
-	ID          int
-	JournalFile string
-	Timestamp   time.Time
-	Hostname    string
-	Unit        string
-	Message     string
-	Priority    string
-	SyslogPID   string
-	SyslogIdent string
-	Fields      string
+	ID          int       `json:"id"`
+	JournalFile string    `json:"journal_file"`
+	Timestamp   time.Time `json:"timestamp"`
+	Hostname    string    `json:"hostname"`
+	Unit        string    `json:"unit"`
+	Message     string    `json:"message"`
+	Priority    string    `json:"priority"`
+	SyslogPID   string    `json:"syslog_pid"`
+	SyslogIdent string    `json:"syslog_ident"`
+	Fields      string    `json:"fields"`
 }
 
 func (jfd *JournalEntryFromDB) ToJournalEntry() (JournalEntry, error) {
