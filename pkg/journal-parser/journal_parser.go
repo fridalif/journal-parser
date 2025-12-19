@@ -38,19 +38,6 @@ func NewJournalParser(target string, partition int, output string, exportSetting
 	}
 }
 
-func (jp *JournalParser) createOutputDirectoryAndDatabaseFile() error {
-	err := os.Mkdir("./"+jp.OutputDirectory, 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create output directory: %v", err)
-	}
-
-	return nil
-}
-
-func (jp *JournalParser) CheckAliveAfterError() error {
-
-}
-
 func (jp *JournalParser) Parse() {
 	isDir, err := jp.isDirectory(jp.Target)
 	if err != nil {
@@ -62,11 +49,6 @@ func (jp *JournalParser) Parse() {
 		jp.DirectoryQueue = append(jp.DirectoryQueue, jp.Target)
 	} else {
 		jp.FileQueue = append(jp.FileQueue, jp.Target)
-	}
-	err = jp.createOutputDirectoryAndDatabaseFile()
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
 	}
 
 	// Parse directories
@@ -88,38 +70,6 @@ func (jp *JournalParser) Parse() {
 		}
 	}
 
-	err = jp.ConnectToDB()
-	if err != nil {
-		fmt.Println("Fatal: cant connect to DB")
-		return
-	}
-
-	err = jp.CreateSQLTables()
-
-	// CheckAliveAfterError
-	if err != nil {
-		fmt.Println("Error creating SQL tables: ", err)
-		err := jp.DBConn.Ping()
-		if err != nil {
-			fmt.Println("Error: ", err)
-			err := jp.ConnectToDB()
-			if err != nil {
-				fmt.Println("Fatal: cant connect to DB")
-				return
-			}
-		}
-	}
-
-	// Закрытие БД если она открыта
-	defer func() {
-		jp.DBMutex.Lock()
-		defer jp.DBMutex.Unlock()
-		if jp.DBConn != nil {
-			jp.DBConn.Close()
-			jp.DBConn = nil
-		}
-	}()
-
 	// Parse files
 	for {
 		fileQueueLen := len(jp.FileQueue)
@@ -135,6 +85,16 @@ func (jp *JournalParser) Parse() {
 		err := jp.ParseFile(fileName)
 		if err != nil {
 			fmt.Println("Error: ", err)
+			err := jp.repo.ConnectToDB(jp.OutputDirectory)
+			if err != nil {
+				fmt.Println("Error: ", err)
+				jp.repo.Close()
+				err := jp.repo.ConnectToDB(jp.OutputDirectory)
+				if err != nil {
+					fmt.Println("Fatal Error Lost connection with Database: ", err)
+					return
+				}
+			}
 		}
 	}
 
@@ -175,25 +135,6 @@ func (jp *JournalParser) ParseDirectory(directory string) error {
 		} else {
 			jp.FileQueue = append(jp.FileQueue, fullPath)
 		}
-	}
-	return nil
-}
-
-type JournalEntry struct {
-	JournalFile string
-	Timestamp   time.Time
-	Hostname    string
-	Unit        string
-	Message     string
-	Priority    string
-	SyslogPID   string
-	SyslogIdent string
-	Fields      map[string]string
-}
-
-func (jp *JournalParser) insertEntriesToDb(entries []JournalEntry) error {
-	for _, entry := range entries {
-		fmt.Println(entry)
 	}
 	return nil
 }
@@ -262,10 +203,16 @@ func (jp *JournalParser) ParseFile(filename string) error {
 
 		entries = append(entries, journalEntry)
 		if jp.Partition > 0 && len(entries) >= jp.Partition {
-			jp.insertEntriesToDb(entries)
+			err = jp.repo.InsertEntries(entries)
+			if err != nil {
+				fmt.Println("Failed insert entry to database: ", err.Error())
+			}
 			entries = []JournalEntry{}
 		}
 	}
-	jp.insertEntriesToDb(entries)
+	err = jp.repo.InsertEntries(entries)
+	if err != nil {
+		fmt.Println("Failed insert entry to database: ", err.Error())
+	}
 	return nil
 }

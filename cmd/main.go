@@ -101,7 +101,14 @@ func main() {
 	fmt.Println("Creating Database...")
 
 	repository := journalparser.NewJournalRepository()
-	err := repository.ConnectToDB(output)
+
+	err := os.Mkdir("./"+output, 0755)
+	if err != nil {
+		fmt.Println("Failed to create output directory: %v", err)
+		return
+	}
+
+	err = repository.ConnectToDB(output)
 	if err != nil {
 		fmt.Println("Error connecting to database: ", err)
 		return

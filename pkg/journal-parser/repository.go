@@ -2,6 +2,7 @@ package journalparser
 
 import (
 	"database/sql"
+	"fmt"
 	"sync"
 )
 
@@ -10,7 +11,8 @@ type JournalRepositoryI interface {
 	CheckAliveAfterError() error
 	Close()
 	CreateTables() error
-	GetEntries(limit int, offset int) ([]JournalEntry, error)
+	GetEntriesLimited(limit int, offset int) ([]JournalEntry, error)
+	GetEntriesUnlimited() ([]JournalEntry, error)
 	InsertEntries(entries []JournalEntry) error
 }
 
@@ -43,7 +45,15 @@ func (r *journalRepository) ConnectToDB(outputDirectory string) error {
 	return nil
 }
 
-func (r *journalRepository) CheckAliveAfterError() error
+func (r *journalRepository) CheckAliveAfterError() error {
+	r.dbMutex.Lock()
+	defer r.dbMutex.Unlock()
+	if r.db == nil {
+		return fmt.Errorf("no connection")
+	}
+	return r.db.Ping()
+}
+
 func (r *journalRepository) Close() {
 	r.dbMutex.Lock()
 	defer r.dbMutex.Unlock()
@@ -80,5 +90,39 @@ func (r *journalRepository) CreateTables() error {
 	return nil
 }
 
-func (r *journalRepository) GetEntries(limit int, offset int) ([]JournalEntry, error)
-func (r *journalRepository) InsertEntries(entries []JournalEntry) error
+func (r *journalRepository) GetEntriesLimited(limit int, offset int) ([]JournalEntry, error) {
+	query := `
+		SELECT journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields
+		FROM journal
+		ORDER BY timestamp ASC
+		LIMIT ?
+		OFFSET ?
+	`
+	rows, err := r.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []JournalEntry
+	for rows.Next() {
+		var entry JournalEntryFromDB
+		err := rows.Scan(&entry.JournalFile, &entry.Timestamp, &entry.Hostname, &entry.Unit, &entry.Message, &entry.Priority, &entry.SyslogPID, &entry.SyslogIdent, &entry.Fields)
+		if err != nil {
+			return nil, err
+		}
+		parsedEntry, err := entry.ToJournalEntry()
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, parsedEntry)
+	}
+	return entries, nil
+}
+
+func (r *journalRepository) GetEntriesUnlimited() ([]JournalEntry, error) {
+
+}
+
+func (r *journalRepository) InsertEntries(entries []JournalEntry) error {
+
+}
