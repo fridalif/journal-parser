@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
@@ -24,6 +25,7 @@ type JournalParser struct {
 	FileQueue       []string
 	OutputDirectory string
 	DBConn          *sql.DB
+	DBMutex         *sync.Mutex
 	ExportSettings  ExportSettings
 }
 
@@ -35,6 +37,7 @@ func NewJournalParser(target string, partition int, output string, exportSetting
 		FileQueue:       []string{},
 		OutputDirectory: output,
 		DBConn:          nil,
+		DBMutex:         new(sync.Mutex),
 		ExportSettings:  exportSettings,
 	}
 }
@@ -45,6 +48,27 @@ func (jp *JournalParser) createOutputDirectoryAndDatabaseFile() error {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
 
+	return nil
+}
+
+func (jp *JournalParser) ConnectToDB() error {
+	// Creating database
+	db, err := sql.Open("sqlite3", "./"+jp.OutputDirectory+"/journal.db")
+	if err != nil {
+		fmt.Println("Error: error while opening database: ", err)
+		return err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		db.Close()
+		fmt.Println("Error: error while checking connection to database: ", err)
+		return err
+	}
+	jp.DBMutex.Lock()
+	defer jp.DBMutex.Unlock()
+	jp.DBMutex = &sync.Mutex{}
+	jp.DBConn = db
 	return nil
 }
 
@@ -85,20 +109,21 @@ func (jp *JournalParser) Parse() {
 		}
 	}
 
-	// Creating database
-	db, err := sql.Open("sqlite3", "./"+jp.OutputDirectory+"/journal.db")
+	err = jp.ConnectToDB()
 	if err != nil {
-		fmt.Println("Error: error while opening database: ", err)
+		fmt.Println("Fatal: cant connect to DB")
 		return
 	}
-	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		fmt.Println("Error: error while checking connection to database: ", err)
-		return
-	}
-	jp.DBConn = db
+	// Закрытие БД если она открыта
+	defer func() {
+		jp.DBMutex.Lock()
+		defer jp.DBMutex.Unlock()
+		if jp.DBConn != nil {
+			jp.DBConn.Close()
+			jp.DBConn = nil
+		}
+	}()
 
 	// Parse files
 	for {
