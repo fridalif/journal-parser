@@ -10,30 +10,28 @@ import (
 )
 
 type JournalParser struct {
-	Target           string
-	Partition        int
-	DirectoryQueue   []string
-	DirectoryQueueMu *sync.Mutex
-	FileQueueMu      *sync.Mutex
-	FileQueue        []string
-	WG               *sync.WaitGroup
-	OutputDirectory  string
-	DBConn           *sql.DB
-	DBMutex          *sync.Mutex
+	Target          string
+	Partition       int
+	DirectoryQueue  []string
+	FileQueueMu     *sync.Mutex
+	FileQueue       []string
+	WG              *sync.WaitGroup
+	OutputDirectory string
+	DBConn          *sql.DB
+	DBMutex         *sync.Mutex
 }
 
 func NewJournalParser(target string, partition int, output string) *JournalParser {
 	return &JournalParser{
-		Target:           target,
-		Partition:        partition,
-		DirectoryQueue:   []string{},
-		FileQueue:        []string{},
-		OutputDirectory:  output,
-		DirectoryQueueMu: new(sync.Mutex),
-		FileQueueMu:      new(sync.Mutex),
-		WG:               new(sync.WaitGroup),
-		DBConn:           nil,
-		DBMutex:          new(sync.Mutex),
+		Target:          target,
+		Partition:       partition,
+		DirectoryQueue:  []string{},
+		FileQueue:       []string{},
+		OutputDirectory: output,
+		FileQueueMu:     new(sync.Mutex),
+		WG:              new(sync.WaitGroup),
+		DBConn:          nil,
+		DBMutex:         new(sync.Mutex),
 	}
 }
 
@@ -66,7 +64,6 @@ func (jp *JournalParser) Parse() {
 
 	// Parse directories
 	for {
-		jp.DirectoryQueueMu.Lock()
 		dirQueueLen := len(jp.DirectoryQueue)
 		if dirQueueLen == 0 {
 			break
@@ -77,18 +74,12 @@ func (jp *JournalParser) Parse() {
 		} else {
 			jp.DirectoryQueue = []string{}
 		}
-		jp.DirectoryQueueMu.Unlock()
-		jp.WG.Add(1)
-		go func() {
-			defer jp.WG.Done()
 
-			err := jp.ParseDirectory(dirName)
-			if err != nil {
-				fmt.Println("Error: ", err)
-			}
-		}()
+		err := jp.ParseDirectory(dirName)
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
 	}
-	jp.WG.Wait()
 
 	// Creating database
 	db, err := sql.Open("sqlite3", "./"+jp.OutputDirectory+"/journal.db")
