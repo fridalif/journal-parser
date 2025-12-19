@@ -33,7 +33,7 @@ func main() {
 	bannerOutput()
 	argsLen := len(os.Args)
 	target := ""
-	partition := -1
+	partition := 0
 	for i := 0; i < argsLen; i++ {
 		if os.Args[i] == "--help" || os.Args[i] == "-h" {
 			printHelpMessage()
