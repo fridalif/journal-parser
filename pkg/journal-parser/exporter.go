@@ -8,16 +8,14 @@ type exporter struct {
 	CSV             bool
 	JSON            bool
 	CLI             bool
-	Partition       int
 	OutputDirectory string
 }
 
-func NewExporter(csv bool, json bool, cli bool, partition int, output string) ExporterI {
+func NewExporter(csv bool, json bool, cli bool, output string) ExporterI {
 	return &exporter{
 		CSV:             csv,
 		JSON:            json,
 		CLI:             cli,
-		Partition:       partition,
 		OutputDirectory: output,
 	}
 }
