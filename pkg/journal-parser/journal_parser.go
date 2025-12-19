@@ -130,9 +130,11 @@ func (jp *JournalParser) isDirectory(path string) (bool, error) {
 }
 
 func (jp *JournalParser) ParseDirectory(directory string) error {
+	fmt.Println("Directory:", directory)
 	return nil
 }
 
 func (jp *JournalParser) ParseFile(filename string) error {
+	fmt.Println("File:", filename)
 	return nil
 }

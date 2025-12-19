@@ -72,7 +72,7 @@ func main() {
 		printHelpMessage()
 		return
 	}
-	output := time.Now().Format("./2010-01-02_15-04-05")
+	output := time.Now().Format("output_2010-01-02_15-04-05")
 	fmt.Println("Mode")
 	fmt.Println("Target: ", target)
 	fmt.Println("Partition: ", partition)
