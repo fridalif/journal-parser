@@ -98,7 +98,25 @@ func main() {
 	fmt.Println("Partition: ", partition)
 	fmt.Println("Output: ", output)
 	fmt.Println("")
+	fmt.Println("Creating Database...")
+
+	repository := journalparser.NewJournalRepository()
+	err := repository.ConnectToDB(output)
+	if err != nil {
+		fmt.Println("Error connecting to database: ", err)
+		return
+	}
+	defer repository.Close()
+	fmt.Println("Database created")
+	fmt.Println("Creating SQL Tables...")
+	err = repository.CreateTables()
+	if err != nil {
+		fmt.Println("Error creating SQL tables: ", err)
+		return
+	}
+	fmt.Println("SQL Tables created")
+
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(target, partition, output, exportSettings)
+	jp := journalparser.NewJournalParser(target, partition, output, exportSettings, repository)
 	jp.Parse()
 }

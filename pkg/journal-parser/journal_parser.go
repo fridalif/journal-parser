@@ -1,11 +1,9 @@
 package journalparser
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
@@ -24,20 +22,18 @@ type JournalParser struct {
 	DirectoryQueue  []string
 	FileQueue       []string
 	OutputDirectory string
-	DBConn          *sql.DB
-	DBMutex         *sync.Mutex
+	repo            JournalRepositoryI
 	ExportSettings  ExportSettings
 }
 
-func NewJournalParser(target string, partition int, output string, exportSettings ExportSettings) *JournalParser {
+func NewJournalParser(target string, partition int, output string, exportSettings ExportSettings, repo JournalRepositoryI) *JournalParser {
 	return &JournalParser{
 		Target:          target,
 		Partition:       partition,
 		DirectoryQueue:  []string{},
 		FileQueue:       []string{},
 		OutputDirectory: output,
-		DBConn:          nil,
-		DBMutex:         new(sync.Mutex),
+		repo:            repo,
 		ExportSettings:  exportSettings,
 	}
 }
@@ -51,25 +47,8 @@ func (jp *JournalParser) createOutputDirectoryAndDatabaseFile() error {
 	return nil
 }
 
-func (jp *JournalParser) ConnectToDB() error {
-	// Creating database
-	db, err := sql.Open("sqlite3", "./"+jp.OutputDirectory+"/journal.db")
-	if err != nil {
-		fmt.Println("Error: error while opening database: ", err)
-		return err
-	}
+func (jp *JournalParser) CheckAliveAfterError() error {
 
-	err = db.Ping()
-	if err != nil {
-		db.Close()
-		fmt.Println("Error: error while checking connection to database: ", err)
-		return err
-	}
-	jp.DBMutex.Lock()
-	defer jp.DBMutex.Unlock()
-	jp.DBMutex = &sync.Mutex{}
-	jp.DBConn = db
-	return nil
 }
 
 func (jp *JournalParser) Parse() {
@@ -113,6 +92,22 @@ func (jp *JournalParser) Parse() {
 	if err != nil {
 		fmt.Println("Fatal: cant connect to DB")
 		return
+	}
+
+	err = jp.CreateSQLTables()
+
+	// CheckAliveAfterError
+	if err != nil {
+		fmt.Println("Error creating SQL tables: ", err)
+		err := jp.DBConn.Ping()
+		if err != nil {
+			fmt.Println("Error: ", err)
+			err := jp.ConnectToDB()
+			if err != nil {
+				fmt.Println("Fatal: cant connect to DB")
+				return
+			}
+		}
 	}
 
 	// Закрытие БД если она открыта
@@ -185,6 +180,7 @@ func (jp *JournalParser) ParseDirectory(directory string) error {
 }
 
 type JournalEntry struct {
+	JournalFile string
 	Timestamp   time.Time
 	Hostname    string
 	Unit        string
@@ -233,7 +229,8 @@ func (jp *JournalParser) ParseFile(filename string) error {
 		}
 
 		journalEntry := JournalEntry{
-			Fields: make(map[string]string),
+			Fields:      make(map[string]string),
+			JournalFile: filename,
 		}
 
 		for k, v := range entry.Fields {
