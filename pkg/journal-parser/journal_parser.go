@@ -1,6 +1,7 @@
 package journalparser
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"sync"
@@ -15,6 +16,8 @@ type JournalParser struct {
 	FileQueue        []string
 	WG               *sync.WaitGroup
 	OutputDirectory  string
+	DBConn           *sql.DB
+	DBMutex          *sync.Mutex
 }
 
 func NewJournalParser(target string, partition int, output string) *JournalParser {
@@ -27,6 +30,8 @@ func NewJournalParser(target string, partition int, output string) *JournalParse
 		DirectoryQueueMu: new(sync.Mutex),
 		FileQueueMu:      new(sync.Mutex),
 		WG:               new(sync.WaitGroup),
+		DBConn:           nil,
+		DBMutex:          new(sync.Mutex),
 	}
 }
 
@@ -36,10 +41,6 @@ func (jp *JournalParser) createOutputDirectoryAndDatabaseFile() error {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
 
-	err = os.WriteFile("./"+jp.OutputDirectory+"/database.db", []byte(""), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to create database file: %v", err)
-	}
 	return nil
 }
 
@@ -87,6 +88,21 @@ func (jp *JournalParser) Parse() {
 	}
 	jp.WG.Wait()
 
+	// Creating database
+	db, err := sql.Open("sqlite3", "./"+jp.OutputDirectory+"/journal.db")
+	if err != nil {
+		fmt.Println("Error: error while opening database: ", err)
+		return
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		fmt.Println("Error: error while checking connection to database: ", err)
+		return
+	}
+	jp.DBConn = db
+
 	// Parse files
 	for {
 		jp.FileQueueMu.Lock()
@@ -111,6 +127,7 @@ func (jp *JournalParser) Parse() {
 		}()
 	}
 	jp.WG.Wait()
+
 	fmt.Println("Done")
 }
 
