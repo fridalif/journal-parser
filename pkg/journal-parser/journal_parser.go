@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
@@ -21,6 +22,9 @@ type JournalParser struct {
 	Partition       int
 	DirectoryQueue  []string
 	FileQueue       []string
+	FileQueueMutex  *sync.Mutex
+	wg              *sync.WaitGroup
+	EntriesChan     chan JournalEntry
 	OutputDirectory string
 	repo            JournalRepositoryI
 	Exporter        ExporterI
@@ -37,7 +41,14 @@ func NewJournalParser(target string, partition int, output string, exporter Expo
 		repo:            repo,
 		Exporter:        exporter,
 		entriesCounter:  0,
+		EntriesChan:     make(chan JournalEntry, 1000),
+		FileQueueMutex:  new(sync.Mutex),
+		wg:              new(sync.WaitGroup),
 	}
+}
+
+func (jp *JournalParser) WriterToDB() {
+
 }
 
 func (jp *JournalParser) Parse() {
@@ -72,8 +83,11 @@ func (jp *JournalParser) Parse() {
 		}
 	}
 
+	go jp.WriterToDB()
+
 	// Parse files
 	for {
+		jp.FileQueueMutex.Lock()
 		fileQueueLen := len(jp.FileQueue)
 		if fileQueueLen == 0 {
 			break
@@ -84,21 +98,29 @@ func (jp *JournalParser) Parse() {
 		} else {
 			jp.FileQueue = []string{}
 		}
-		err := jp.ParseFile(fileName)
-		if err != nil {
-			fmt.Println("Error: ", err)
-			err := jp.repo.ConnectToDB(jp.OutputDirectory)
+		jp.FileQueueMutex.Unlock()
+		jp.wg.Add(1)
+		go func() {
+			defer jp.wg.Done()
+			err := jp.ParseFile(fileName)
 			if err != nil {
 				fmt.Println("Error: ", err)
-				jp.repo.Close()
-				err := jp.repo.ConnectToDB(jp.OutputDirectory)
+				err := jp.repo.CheckAliveAfterError()
 				if err != nil {
-					fmt.Println("Fatal Error Lost connection with Database: ", err)
-					return
+					fmt.Println("Error: ", err)
+					jp.repo.Close()
+					err := jp.repo.ConnectToDB(jp.OutputDirectory)
+					if err != nil {
+						fmt.Println("Fatal Error Lost connection with Database: ", err)
+						return
+					}
 				}
 			}
-		}
+		}()
 	}
+
+	jp.wg.Wait()
+	close(jp.EntriesChan)
 
 	fmt.Println("Parsing Done! Starting Export...")
 
