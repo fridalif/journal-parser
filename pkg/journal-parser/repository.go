@@ -3,6 +3,7 @@ package journalparser
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -162,18 +163,40 @@ func (r *journalRepository) InsertEntries(entries []JournalEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
+
+	values := make([]any, 0, len(entries)*9)
+	placeholders := make([]string, 0, len(entries))
+
 	for _, entry := range entries {
 		journalEntryForDb, err := entry.ToJournalEntryFromDB()
 		if err != nil {
 			return err
 		}
-		r.dbMutex.Lock()
-		defer r.dbMutex.Unlock()
-		_, err = r.db.Exec("INSERT INTO journal (journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			journalEntryForDb.JournalFile, journalEntryForDb.Timestamp, journalEntryForDb.Hostname, journalEntryForDb.Unit, journalEntryForDb.Message, journalEntryForDb.Priority, journalEntryForDb.SyslogPID, journalEntryForDb.SyslogIdent, journalEntryForDb.Fields)
-		if err != nil {
-			return err
-		}
+
+		placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		values = append(values,
+			journalEntryForDb.JournalFile,
+			journalEntryForDb.Timestamp,
+			journalEntryForDb.Hostname,
+			journalEntryForDb.Unit,
+			journalEntryForDb.Message,
+			journalEntryForDb.Priority,
+			journalEntryForDb.SyslogPID,
+			journalEntryForDb.SyslogIdent,
+			journalEntryForDb.Fields,
+		)
 	}
-	return nil
+
+	r.dbMutex.Lock()
+	defer r.dbMutex.Unlock()
+
+	// Один запрос с множественными VALUES
+	query := `
+        INSERT INTO journal 
+        (journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields) 
+        VALUES ` + strings.Join(placeholders, ", ")
+
+	_, err := r.db.Exec(query, values...)
+	return err
+
 }
