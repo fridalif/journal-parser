@@ -30,6 +30,7 @@ type JournalParser struct {
 	repo            JournalRepositoryI
 	Exporter        ExporterI
 	entriesCounter  atomic.Int32
+	writerWG        *sync.WaitGroup
 }
 
 func NewJournalParser(target string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
@@ -45,11 +46,37 @@ func NewJournalParser(target string, partition int, output string, exporter Expo
 		EntriesChan:     make(chan JournalEntry, 1000),
 		FileQueueMutex:  new(sync.Mutex),
 		wg:              new(sync.WaitGroup),
+		writerWG:        new(sync.WaitGroup),
 	}
 }
 
 func (jp *JournalParser) WriterToDB() {
+	defer jp.writerWG.Done()
+	entries := make([]JournalEntry, 0)
+	if jp.Partition > 0 {
+		entries = make([]JournalEntry, 0, jp.Partition)
+	}
+	for {
+		entry, ok := <-jp.EntriesChan
+		if !ok {
+			break
+		}
+		entries = append(entries, entry)
+		if len(entries) >= jp.Partition && jp.Partition > 0 {
+			err := jp.repo.InsertEntries(entries)
+			if err != nil {
+				fmt.Println("Error: ", err)
+			}
+			entries = entries[:0]
+		}
+	}
 
+	if len(entries) > 0 {
+		err := jp.repo.InsertEntries(entries)
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
+	}
 }
 
 func (jp *JournalParser) Parse() {
@@ -84,6 +111,7 @@ func (jp *JournalParser) Parse() {
 		}
 	}
 
+	jp.writerWG.Add(1)
 	go jp.WriterToDB()
 
 	// Parse files
@@ -122,6 +150,7 @@ func (jp *JournalParser) Parse() {
 
 	jp.wg.Wait()
 	close(jp.EntriesChan)
+	jp.writerWG.Wait()
 
 	fmt.Println("Parsing Done! Starting Export...")
 
