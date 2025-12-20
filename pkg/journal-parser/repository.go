@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"sync"
 )
 
 type JournalRepositoryI interface {
@@ -15,18 +14,23 @@ type JournalRepositoryI interface {
 	GetEntriesLimited(limit int, offset int) ([]JournalEntry, error)
 	GetEntriesUnlimited() ([]JournalEntry, error)
 	InsertEntries(entries []JournalEntry) error
+	GetMaxBatchSize() int
 }
 
 type journalRepository struct {
-	db      *sql.DB
-	dbMutex *sync.Mutex
+	MaxBatchSize int
+	db           *sql.DB
 }
 
 func NewJournalRepository() JournalRepositoryI {
 	return &journalRepository{
-		db:      nil,
-		dbMutex: new(sync.Mutex),
+		db:           nil,
+		MaxBatchSize: 1000,
 	}
+}
+
+func (r *journalRepository) GetMaxBatchSize() int {
+	return r.MaxBatchSize
 }
 
 func (r *journalRepository) ConnectToDB(outputDirectory string) error {
@@ -40,15 +44,11 @@ func (r *journalRepository) ConnectToDB(outputDirectory string) error {
 		db.Close()
 		return err
 	}
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	r.db = db
 	return nil
 }
 
 func (r *journalRepository) CheckAliveAfterError() error {
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	if r.db == nil {
 		return fmt.Errorf("no connection")
 	}
@@ -62,8 +62,6 @@ func (r *journalRepository) Close() {
 		}
 	}()
 
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	if r.db == nil {
 		return
 	}
@@ -72,11 +70,9 @@ func (r *journalRepository) Close() {
 }
 
 func (r *journalRepository) CreateTables() error {
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	query := `
 		CREATE TABLE IF NOT EXISTS journal (
-			id BIGINT PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			journal_file TEXT NOT NULL,
 			timestamp DATETIME NOT NULL,
 			hostname TEXT NOT NULL,
@@ -100,8 +96,6 @@ func (r *journalRepository) CreateTables() error {
 }
 
 func (r *journalRepository) GetEntriesLimited(limit int, offset int) ([]JournalEntry, error) {
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	query := `
 		SELECT journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields
 		FROM journal
@@ -131,8 +125,6 @@ func (r *journalRepository) GetEntriesLimited(limit int, offset int) ([]JournalE
 }
 
 func (r *journalRepository) GetEntriesUnlimited() ([]JournalEntry, error) {
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
 	query := `
 		SELECT journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields
 		FROM journal
@@ -163,10 +155,8 @@ func (r *journalRepository) InsertEntries(entries []JournalEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
-
-	values := make([]any, 0, len(entries)*9)
-	placeholders := make([]string, 0, len(entries))
-
+	values := make([]any, 0, r.MaxBatchSize*9)
+	placeholders := make([]string, 0, r.MaxBatchSize)
 	for _, entry := range entries {
 		journalEntryForDb, err := entry.ToJournalEntryFromDB()
 		if err != nil {
@@ -185,18 +175,33 @@ func (r *journalRepository) InsertEntries(entries []JournalEntry) error {
 			journalEntryForDb.SyslogIdent,
 			journalEntryForDb.Fields,
 		)
+		if len(placeholders) >= r.MaxBatchSize {
+			query := `
+				INSERT INTO journal 
+				(journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields) 
+				VALUES ` + strings.Join(placeholders, ", ")
+
+			_, err := r.db.Exec(query, values...)
+			if err != nil {
+				return err
+			}
+			values = values[:0]
+			placeholders = placeholders[:0]
+
+		}
 	}
 
-	r.dbMutex.Lock()
-	defer r.dbMutex.Unlock()
+	if len(values) == 0 {
+		return nil
+	}
 
-	// Один запрос с множественными VALUES
 	query := `
         INSERT INTO journal 
         (journal_file, timestamp, hostname, unit, message, priority, syslog_pid, syslog_ident, fields) 
         VALUES ` + strings.Join(placeholders, ", ")
 
 	_, err := r.db.Exec(query, values...)
+	fmt.Println("Done")
 	return err
 
 }

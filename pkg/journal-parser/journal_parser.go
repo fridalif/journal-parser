@@ -10,6 +10,7 @@ import (
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/schollz/progressbar/v3"
 )
 
 type ExportSettings struct {
@@ -43,7 +44,7 @@ func NewJournalParser(target string, partition int, output string, exporter Expo
 		repo:            repo,
 		Exporter:        exporter,
 		entriesCounter:  atomic.Int32{},
-		EntriesChan:     make(chan JournalEntry, 1000),
+		EntriesChan:     make(chan JournalEntry, repo.GetMaxBatchSize()),
 		FileQueueMutex:  new(sync.Mutex),
 		wg:              new(sync.WaitGroup),
 		writerWG:        new(sync.WaitGroup),
@@ -61,6 +62,7 @@ func (jp *JournalParser) WriterToDB() {
 		if !ok {
 			break
 		}
+
 		entries = append(entries, entry)
 		if len(entries) >= jp.Partition && jp.Partition > 0 {
 			err := jp.repo.InsertEntries(entries)
@@ -70,7 +72,6 @@ func (jp *JournalParser) WriterToDB() {
 			entries = entries[:0]
 		}
 	}
-
 	if len(entries) > 0 {
 		err := jp.repo.InsertEntries(entries)
 		if err != nil {
@@ -113,6 +114,8 @@ func (jp *JournalParser) Parse() {
 
 	jp.writerWG.Add(1)
 	go jp.WriterToDB()
+	fileQueueStartLen := len(jp.FileQueue)
+	parsingBar := progressbar.Default(int64(fileQueueStartLen), "Parsing Files...")
 
 	// Parse files
 	for {
@@ -132,6 +135,7 @@ func (jp *JournalParser) Parse() {
 		go func() {
 			defer jp.wg.Done()
 			err := jp.ParseFile(fileName)
+			parsingBar.Add(1)
 			if err != nil {
 				fmt.Println("Error: ", err)
 				err := jp.repo.CheckAliveAfterError()
@@ -149,10 +153,11 @@ func (jp *JournalParser) Parse() {
 	}
 
 	jp.wg.Wait()
+	fmt.Println("Parsing Done. Waiting for Inserting to Database...")
 	close(jp.EntriesChan)
 	jp.writerWG.Wait()
 
-	fmt.Println("Parsing Done! Starting Export...")
+	fmt.Println("Starting Export...")
 
 	if jp.Partition == 0 {
 		entries, err := jp.repo.GetEntriesUnlimited()
@@ -170,8 +175,9 @@ func (jp *JournalParser) Parse() {
 		return
 	}
 
+	exportBar := progressbar.Default(int64(jp.entriesCounter.Load()), "Exporting...")
+
 	for i := 0; i < int(jp.entriesCounter.Load()); i += jp.Partition {
-		fmt.Printf("Export Progress: %d/%d\n", i, int(jp.entriesCounter.Load()))
 		entries, err := jp.repo.GetEntriesLimited(jp.Partition, i)
 		if err != nil {
 			fmt.Println("Error: ", err)
@@ -184,6 +190,7 @@ func (jp *JournalParser) Parse() {
 		}
 
 		err = jp.Exporter.Export(entries)
+		exportBar.Add(jp.Partition)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			continue
@@ -208,7 +215,6 @@ func (jp *JournalParser) isDirectory(path string) (bool, error) {
 }
 
 func (jp *JournalParser) ParseDirectory(directory string) error {
-	fmt.Println("Parsing Directory:", directory)
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return fmt.Errorf("failed to parse directory: %v", err)
@@ -231,7 +237,6 @@ func (jp *JournalParser) ParseDirectory(directory string) error {
 }
 
 func (jp *JournalParser) ParseFile(filename string) error {
-	fmt.Println("File:", filename)
 	journal, err := sdjournal.NewJournalFromFiles(filename)
 	if err != nil {
 		return fmt.Errorf("failed to open journal: %v", err)
@@ -291,21 +296,7 @@ func (jp *JournalParser) ParseFile(filename string) error {
 		}
 		jp.entriesCounter.Add(1)
 		jp.EntriesChan <- journalEntry
-		//entries = append(entries, journalEntry)
-		//if jp.Partition > 0 && len(entries) >= jp.Partition {
-		//	err = jp.repo.InsertEntries(entries)
-		//	if err != nil {
-		//		fmt.Println("Failed insert entry to database: ", err.Error())
-		//	}
-		//	jp.entriesCounter += len(entries)
-		//	entries = []JournalEntry{}
-		//}
+
 	}
-	//err = jp.repo.InsertEntries(entries)
-	//if err != nil {
-	//	fmt.Println("Failed insert entry to database: ", err.Error())
-	//	return err
-	//}
-	//jp.entriesCounter += len(entries)
 	return nil
 }
