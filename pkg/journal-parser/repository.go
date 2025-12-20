@@ -55,6 +55,12 @@ func (r *journalRepository) CheckAliveAfterError() error {
 }
 
 func (r *journalRepository) Close() {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("Recovering from close:", err)
+		}
+	}()
+
 	r.dbMutex.Lock()
 	defer r.dbMutex.Unlock()
 	if r.db == nil {

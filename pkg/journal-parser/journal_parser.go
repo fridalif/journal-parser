@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
@@ -28,7 +29,7 @@ type JournalParser struct {
 	OutputDirectory string
 	repo            JournalRepositoryI
 	Exporter        ExporterI
-	entriesCounter  int
+	entriesCounter  atomic.Int32
 }
 
 func NewJournalParser(target string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
@@ -40,7 +41,7 @@ func NewJournalParser(target string, partition int, output string, exporter Expo
 		OutputDirectory: output,
 		repo:            repo,
 		Exporter:        exporter,
-		entriesCounter:  0,
+		entriesCounter:  atomic.Int32{},
 		EntriesChan:     make(chan JournalEntry, 1000),
 		FileQueueMutex:  new(sync.Mutex),
 		wg:              new(sync.WaitGroup),
@@ -140,8 +141,8 @@ func (jp *JournalParser) Parse() {
 		return
 	}
 
-	for i := 0; i < jp.entriesCounter; i += jp.Partition {
-		fmt.Printf("Export Progress: %d/%d\n", i, jp.entriesCounter)
+	for i := 0; i < int(jp.entriesCounter.Load()); i += jp.Partition {
+		fmt.Printf("Export Progress: %d/%d\n", i, int(jp.entriesCounter.Load()))
 		entries, err := jp.repo.GetEntriesLimited(jp.Partition, i)
 		if err != nil {
 			fmt.Println("Error: ", err)
@@ -213,8 +214,6 @@ func (jp *JournalParser) ParseFile(filename string) error {
 		return fmt.Errorf("failed to seek head: %v", err)
 	}
 
-	entries := []JournalEntry{}
-
 	for {
 		n, err := journal.Next()
 		if err != nil {
@@ -261,22 +260,23 @@ func (jp *JournalParser) ParseFile(filename string) error {
 				journalEntry.SyslogIdent = v
 			}
 		}
-
-		entries = append(entries, journalEntry)
-		if jp.Partition > 0 && len(entries) >= jp.Partition {
-			err = jp.repo.InsertEntries(entries)
-			if err != nil {
-				fmt.Println("Failed insert entry to database: ", err.Error())
-			}
-			jp.entriesCounter += len(entries)
-			entries = []JournalEntry{}
-		}
+		jp.entriesCounter.Add(1)
+		jp.EntriesChan <- journalEntry
+		//entries = append(entries, journalEntry)
+		//if jp.Partition > 0 && len(entries) >= jp.Partition {
+		//	err = jp.repo.InsertEntries(entries)
+		//	if err != nil {
+		//		fmt.Println("Failed insert entry to database: ", err.Error())
+		//	}
+		//	jp.entriesCounter += len(entries)
+		//	entries = []JournalEntry{}
+		//}
 	}
-	err = jp.repo.InsertEntries(entries)
-	if err != nil {
-		fmt.Println("Failed insert entry to database: ", err.Error())
-		return err
-	}
-	jp.entriesCounter += len(entries)
+	//err = jp.repo.InsertEntries(entries)
+	//if err != nil {
+	//	fmt.Println("Failed insert entry to database: ", err.Error())
+	//	return err
+	//}
+	//jp.entriesCounter += len(entries)
 	return nil
 }
