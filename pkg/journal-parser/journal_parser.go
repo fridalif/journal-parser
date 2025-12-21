@@ -316,7 +316,7 @@ func (jp *JournalParser) ParseFile(filename string) error {
 	reader, _ := ntfs_parser.NewPagedReader(fd, 1024, 10000)
 	journal, err := parser.OpenFile(reader)
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	for log := range journal.GetLogs(context.Background()) {
 		entry := jp.parseLogItems(log.Items(), filename)

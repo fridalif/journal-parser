@@ -2,7 +2,7 @@
 
 ## Description
 
-Tool for recursive parsing Linux journals with export in different file formats
+Crossplatform tool for recursive parsing Linux journals directories and files with export in different file formats
 
 ## Used Libraries
 
@@ -14,7 +14,6 @@ Tool for recursive parsing Linux journals with export in different file formats
 ## Compiling
 
 ```bash
-sudo apt-get install libsystemd-dev
 go build cmd/main.go -o journalparser
 ```
 
