@@ -1,5 +1,5 @@
-github.com/coreos/go-systemd/v22 v22.6.0 h1:aGVa/v8B7hpb0TKl0MWoAavPDmHvobFe5R5zn0bCJWo=
-github.com/coreos/go-systemd/v22 v22.6.0/go.mod h1:iG+pp635Fo7ZmV/j14KUcmEyWF+0X7Lua8rrTWzYgWU=
+github.com/Velocidex/go-journalctl v0.0.0-20250902002606-881a5f66df10 h1:AGL0nv7O7LoRqdNwx1IZNmcacgC9W+ItMPJL4Vhy2gM=
+github.com/Velocidex/go-journalctl v0.0.0-20250902002606-881a5f66df10/go.mod h1:5WxXsCtLdEvnc4FsFa+QfMwOWYkfey3nlQbPssZWqjc=
 github.com/mattn/go-sqlite3 v1.14.32 h1:JD12Ag3oLy1zQA+BNn74xRgaBbdhbNIDYvQUEuuErjs=
 github.com/mattn/go-sqlite3 v1.14.32/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2EmQ4l5rM/4FEfDWcRD+abF5XlKShorW5LRoQ=
