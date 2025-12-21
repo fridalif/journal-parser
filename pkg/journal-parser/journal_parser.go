@@ -20,7 +20,7 @@ type ExportSettings struct {
 }
 
 type JournalParser struct {
-	Target          string
+	Targets         []string
 	Partition       int
 	DirectoryQueue  []string
 	FileQueue       []string
@@ -34,9 +34,9 @@ type JournalParser struct {
 	writerWG        *sync.WaitGroup
 }
 
-func NewJournalParser(target string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
+func NewJournalParser(targets []string, partition int, output string, exporter ExporterI, repo JournalRepositoryI) *JournalParser {
 	return &JournalParser{
-		Target:          target,
+		Targets:         targets,
 		Partition:       partition,
 		DirectoryQueue:  []string{},
 		FileQueue:       []string{},
@@ -81,16 +81,18 @@ func (jp *JournalParser) WriterToDB() {
 }
 
 func (jp *JournalParser) Parse() {
-	isDir, err := jp.isDirectory(jp.Target)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	}
-	fmt.Println("Successfully create output directory: ", jp.OutputDirectory)
-	if isDir {
-		jp.DirectoryQueue = append(jp.DirectoryQueue, jp.Target)
-	} else {
-		jp.FileQueue = append(jp.FileQueue, jp.Target)
+	for _, target := range jp.Targets {
+		isDir, err := jp.isDirectory(target)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
+		fmt.Println("Successfully create output directory: ", jp.OutputDirectory)
+		if isDir {
+			jp.DirectoryQueue = append(jp.DirectoryQueue, target)
+		} else {
+			jp.FileQueue = append(jp.FileQueue, target)
+		}
 	}
 
 	// Parse directories

@@ -22,10 +22,10 @@ type journalRepository struct {
 	db           *sql.DB
 }
 
-func NewJournalRepository() JournalRepositoryI {
+func NewJournalRepository(maxBatchSize int) JournalRepositoryI {
 	return &journalRepository{
 		db:           nil,
-		MaxBatchSize: 1000,
+		MaxBatchSize: maxBatchSize,
 	}
 }
 
