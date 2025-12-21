@@ -1,5 +1,16 @@
 # journal-parser
 
+## Description
+
+Tool for recursive parsing Linux journals with export in different file formats
+
+## Used Libraries
+
+- [Velocidex Journalctl](github.com/Velocidex/go-journalctl);
+- [Velocidex GoNTFS](www.velocidex.com/golang/go-ntfs);
+- [Progressbar](github.com/schollz/progressbar);
+- [SQLite Driver](github.com/mattn/go-sqlite3).
+
 ## Compiling
 
 ```bash

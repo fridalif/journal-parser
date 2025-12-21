@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	ntfs_parser "www.velocidex.com/golang/go-ntfs/parser"
 
+	"github.com/Velocidex/ordereddict"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -239,6 +242,71 @@ func (jp *JournalParser) ParseDirectory(directory string) error {
 	return nil
 }
 
+func (jp *JournalParser) parseLogItems(items []ordereddict.Item, journalFile string) *JournalEntry {
+	entry := &JournalEntry{
+		JournalFile: journalFile,
+		Fields:      make(map[string]string),
+	}
+	for _, item := range items {
+		switch item.Value.(type) {
+		case string:
+			entry.Fields[item.Key] = item.Value.(string)
+		case *ordereddict.Dict:
+			newEntry := jp.parseLogItems(item.Value.(*ordereddict.Dict).Items(), journalFile)
+			for key, value := range newEntry.Fields {
+				entry.Fields[key] = value
+			}
+		case int64:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case uint64:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case uint32:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case uint16:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case uint8:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case int32:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case int16:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case int8:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case int:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case uint:
+			entry.Fields[item.Key] = fmt.Sprintf("%d", item.Value)
+		case time.Time:
+			entry.Fields[item.Key] = item.Value.(time.Time).Format(time.RFC3339)
+		default:
+			entry.Fields[item.Key] = fmt.Sprintf("%v", item.Value)
+		}
+	}
+	for k, v := range entry.Fields {
+		switch k {
+		case "Timestamp":
+			entry.Timestamp, _ = time.Parse(time.RFC3339, v)
+		case "_HOSTNAME":
+			entry.Hostname = v
+		case "_SYSTEMD_UNIT":
+			entry.Unit = v
+		case "_PID":
+			if entry.SyslogPID == "" {
+				entry.SyslogPID = v
+			}
+		case "MESSAGE":
+			entry.Message = v
+		case "PRIORITY":
+			entry.Priority = v
+		case "SYSLOG_PID":
+			entry.SyslogPID = v
+		case "SYSLOG_IDENTIFIER":
+			entry.SyslogIdent = v
+		}
+	}
+	return entry
+}
+
 func (jp *JournalParser) ParseFile(filename string) error {
 	fd, err := os.Open(filename)
 	if err != nil {
@@ -251,8 +319,9 @@ func (jp *JournalParser) ParseFile(filename string) error {
 		panic(err)
 	}
 	for log := range journal.GetLogs(context.Background()) {
-		var entry JournalEntry
-		entry.JournalFile = filename
+		entry := jp.parseLogItems(log.Items(), filename)
+		jp.EntriesChan <- *entry
+		jp.entriesCounter.Add(1)
 	}
 	return nil
 }
