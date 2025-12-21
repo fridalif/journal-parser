@@ -282,6 +282,17 @@ func (jp *JournalParser) ParseFile(filename string) error {
 				var usec int64
 				fmt.Sscanf(v, "%d", &usec)
 				journalEntry.Timestamp = time.Unix(usec/1000000, (usec%1000000)*1000)
+			case "SYSLOG_TIMESTAMP":
+				if parsed, err := time.Parse("Jan _2 15:04:05", v); err == nil {
+					year := time.Now().Year()
+					parsed = time.Date(year, parsed.Month(), parsed.Day(),
+						parsed.Hour(), parsed.Minute(), parsed.Second(),
+						0, time.Local)
+					nullTime := time.Time{}
+					if journalEntry.Timestamp.Equal(nullTime) {
+						journalEntry.Timestamp = parsed
+					}
+				}
 			case "_HOSTNAME":
 				journalEntry.Hostname = v
 			case "_SYSTEMD_UNIT":

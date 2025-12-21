@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -111,10 +110,8 @@ func (e *exporter) ExportToCSV(entries []JournalEntry, maxTimestamp string, minT
 		"Priority",
 		"SyslogPID",
 		"SyslogIdent",
+		"FullInfo",
 	}
-
-	fieldKeys := e.getFieldKeys(entries)
-	headers = append(headers, fieldKeys...)
 
 	if err := writer.Write(headers); err != nil {
 		return err
@@ -122,7 +119,11 @@ func (e *exporter) ExportToCSV(entries []JournalEntry, maxTimestamp string, minT
 
 	for _, entry := range entries {
 		record := make([]string, 0, len(headers))
-
+		fieldsBytes, err := json.Marshal(entry.Fields)
+		if err != nil {
+			fieldsBytes = []byte(fmt.Sprintf("%v", entry.Fields))
+			continue
+		}
 		record = append(record,
 			entry.JournalFile,
 			entry.Timestamp.Format(time.RFC3339),
@@ -132,15 +133,8 @@ func (e *exporter) ExportToCSV(entries []JournalEntry, maxTimestamp string, minT
 			entry.Priority,
 			entry.SyslogPID,
 			entry.SyslogIdent,
+			e.escapeCSVField(string(fieldsBytes)),
 		)
-
-		for _, key := range fieldKeys {
-			if value, exists := entry.Fields[key]; exists {
-				record = append(record, e.escapeCSVField(value))
-			} else {
-				record = append(record, "")
-			}
-		}
 
 		if err := writer.Write(record); err != nil {
 			return err
@@ -148,23 +142,6 @@ func (e *exporter) ExportToCSV(entries []JournalEntry, maxTimestamp string, minT
 	}
 
 	return nil
-}
-
-func (e *exporter) getFieldKeys(entries []JournalEntry) []string {
-	keysMap := make(map[string]struct{})
-	for _, entry := range entries {
-		for key := range entry.Fields {
-			keysMap[key] = struct{}{}
-		}
-	}
-
-	keys := make([]string, 0, len(keysMap))
-	for key := range keysMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	return keys
 }
 
 func (e *exporter) escapeCSVField(value string) string {
@@ -188,8 +165,13 @@ func (e *exporter) ExportToJSON(entries []JournalEntry, maxTimestamp string, min
 }
 
 func (e *exporter) ExportToCLI(entries []JournalEntry) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
 	for _, entry := range entries {
-		fmt.Println(entry)
+		err := encoder.Encode(entry)
+		if err != nil {
+			continue
+		}
 	}
 	return nil
 }

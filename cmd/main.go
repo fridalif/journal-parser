@@ -1,6 +1,7 @@
 package main
 
 import (
+	"C"
 	"fmt"
 	journalparser "journal-parser/pkg/journal-parser"
 	"os"
