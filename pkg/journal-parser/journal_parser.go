@@ -1,15 +1,16 @@
 package journalparser
 
 import (
+	"context"
 	"fmt"
+	parser "journal-parser/pkg/velocidex_parser"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"time"
 
-	"github.com/coreos/go-systemd/v22/sdjournal"
-	_ "github.com/mattn/go-sqlite3"
+	ntfs_parser "www.velocidex.com/golang/go-ntfs/parser"
+
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -239,77 +240,19 @@ func (jp *JournalParser) ParseDirectory(directory string) error {
 }
 
 func (jp *JournalParser) ParseFile(filename string) error {
-	journal, err := sdjournal.NewJournalFromFiles(filename)
+	fd, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("failed to open journal: %v", err)
+		return err
 	}
-	defer journal.Close()
-
-	err = journal.SeekHead()
+	defer fd.Close()
+	reader, _ := ntfs_parser.NewPagedReader(fd, 1024, 10000)
+	journal, err := parser.OpenFile(reader)
 	if err != nil {
-		return fmt.Errorf("failed to seek head: %v", err)
+		panic(err)
 	}
-
-	for {
-		n, err := journal.Next()
-		if err != nil {
-			return fmt.Errorf("failed to read next entry: %v", err)
-		}
-
-		if n == 0 {
-			break
-		}
-
-		entry, err := journal.GetEntry()
-		if err != nil {
-			return fmt.Errorf("failed to get entry: %v", err)
-		}
-
-		journalEntry := JournalEntry{
-			Fields:      make(map[string]string),
-			JournalFile: filename,
-		}
-
-		for k, v := range entry.Fields {
-			journalEntry.Fields[k] = v
-
-			switch k {
-			case "__REALTIME_TIMESTAMP":
-				var usec int64
-				fmt.Sscanf(v, "%d", &usec)
-				journalEntry.Timestamp = time.Unix(usec/1000000, (usec%1000000)*1000)
-			case "_SOURCE_REALTIME_TIMESTAMP":
-				var usec int64
-				fmt.Sscanf(v, "%d", &usec)
-				journalEntry.Timestamp = time.Unix(usec/1000000, (usec%1000000)*1000)
-			case "SYSLOG_TIMESTAMP":
-				if parsed, err := time.Parse("Jan _2 15:04:05", v); err == nil {
-					year := time.Now().Year()
-					parsed = time.Date(year, parsed.Month(), parsed.Day(),
-						parsed.Hour(), parsed.Minute(), parsed.Second(),
-						0, time.Local)
-					nullTime := time.Time{}
-					if journalEntry.Timestamp.Equal(nullTime) {
-						journalEntry.Timestamp = parsed
-					}
-				}
-			case "_HOSTNAME":
-				journalEntry.Hostname = v
-			case "_SYSTEMD_UNIT":
-				journalEntry.Unit = v
-			case "MESSAGE":
-				journalEntry.Message = v
-			case "PRIORITY":
-				journalEntry.Priority = v
-			case "SYSLOG_PID":
-				journalEntry.SyslogPID = v
-			case "SYSLOG_IDENTIFIER":
-				journalEntry.SyslogIdent = v
-			}
-		}
-		jp.entriesCounter.Add(1)
-		jp.EntriesChan <- journalEntry
-
+	for log := range journal.GetLogs(context.Background()) {
+		var entry JournalEntry
+		entry.JournalFile = filename
 	}
 	return nil
 }
