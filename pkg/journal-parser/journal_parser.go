@@ -18,9 +18,10 @@ import (
 )
 
 type ExportSettings struct {
-	CSV  bool
-	JSON bool
-	CLI  bool
+	CSV             bool
+	JSON            bool
+	CLI             bool
+	OutputDirectory string
 }
 
 type JournalParser struct {

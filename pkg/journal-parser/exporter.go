@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -86,11 +87,11 @@ func (e *exporter) Export(entries []JournalEntry) error {
 }
 
 func (e *exporter) ExportToCSV(entries []JournalEntry, maxTimestamp string, minTimestamp string) error {
-	filename := fmt.Sprintf("%s/%s_%s.%d.csv",
-		e.OutputDirectory,
+	filename := path.Join(e.OutputDirectory, fmt.Sprintf("%s_%s.%d.csv",
 		strings.ReplaceAll(minTimestamp, ":", "-"),
 		strings.ReplaceAll(maxTimestamp, ":", "-"),
-		time.Now().UnixNano())
+		time.Now().UnixNano()),
+	)
 
 	fd, err := os.Create(filename)
 	if err != nil {
@@ -153,7 +154,11 @@ func (e *exporter) escapeCSVField(value string) string {
 }
 
 func (e *exporter) ExportToJSON(entries []JournalEntry, maxTimestamp string, minTimestamp string) error {
-	filename := fmt.Sprintf("%s/%s_%s.%d.json", e.OutputDirectory, minTimestamp, maxTimestamp, time.Now().UnixNano())
+	filename := path.Join(e.OutputDirectory, fmt.Sprintf("%s_%s.%d.json",
+		strings.ReplaceAll(minTimestamp, ":", "-"),
+		strings.ReplaceAll(maxTimestamp, ":", "-"),
+		time.Now().UnixNano()),
+	)
 	fd, err := os.Create(filename)
 	if err != nil {
 		return err

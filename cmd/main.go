@@ -4,6 +4,7 @@ import (
 	"fmt"
 	journalparser "journal-parser/pkg/journal-parser"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ func printHelpMessage() {
 	fmt.Println("  	-t, --target <Directory or filename>  The target to parse (this argument can be repeated)")
 	fmt.Println("  	-p, --partition <Number>  Max strings per file (min 0, no partition by default)")
 	fmt.Println("	-mb, --max-batch <Number> Max number of butch for SQL insert (max 1000, min 1, default 1000)")
+	fmt.Println("	-o, --output <Directory> Directory for output")
 	fmt.Println("  	--csv Export output to csv")
 	fmt.Println("	--json Export output to json")
 	fmt.Println("	--cli Export output to cli")
@@ -39,6 +41,7 @@ func main() {
 	argsLen := len(os.Args)
 	targets := []string{}
 	partition := 0
+	outputDir := ""
 	exportSettings := journalparser.ExportSettings{
 		CSV:  false,
 		JSON: false,
@@ -62,6 +65,21 @@ func main() {
 				return
 			}
 			targets = append(targets, os.Args[i+1])
+			i += 1
+			continue
+		}
+		if os.Args[i] == "--output" || os.Args[i] == "-o" {
+			if i+1 >= argsLen {
+				fmt.Println("Error: Missing argument for --output or -o")
+				printHelpMessage()
+				return
+			}
+			if os.Args[i+1] == "" {
+				fmt.Println("Error: Missing argument for --output or -o")
+				printHelpMessage()
+				return
+			}
+			outputDir = os.Args[i+1]
 			i += 1
 			continue
 		}
@@ -127,10 +145,11 @@ func main() {
 		return
 	}
 	output := time.Now().Format("output_2006-01-02_15-04-05")
+	exportSettings.OutputDirectory = path.Join(outputDir, output)
 	fmt.Println("Mode")
 	fmt.Println("Targets: ", strings.Join(targets, ", "))
 	fmt.Println("Partition: ", partition)
-	fmt.Println("Output: ", output)
+	fmt.Println("Output: ", exportSettings.OutputDirectory)
 	fmt.Println("")
 	fmt.Println("Creating Database...")
 
@@ -142,7 +161,7 @@ func main() {
 		return
 	}
 
-	err = repository.ConnectToDB(output)
+	err = repository.ConnectToDB(exportSettings.OutputDirectory)
 	if err != nil {
 		fmt.Println("Error connecting to database: ", err)
 		return
@@ -156,8 +175,8 @@ func main() {
 		return
 	}
 	fmt.Println("SQL Tables created")
-	exporter := journalparser.NewExporter(exportSettings.CSV, exportSettings.JSON, exportSettings.CLI, output)
+	exporter := journalparser.NewExporter(exportSettings.CSV, exportSettings.JSON, exportSettings.CLI, exportSettings.OutputDirectory)
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(targets, partition, output, exporter, repository)
+	jp := journalparser.NewJournalParser(targets, partition, exportSettings.OutputDirectory, exporter, repository)
 	jp.Parse()
 }
