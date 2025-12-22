@@ -26,6 +26,7 @@ Flags:
     -t, --target <Directory or filename>  The target to parse (this argument can be repeated)
     -p, --partition <Number>  Max strings per file (min 0, no partition by default)
     -mb, --max-batch <Number> Max number of butch for SQL insert (max 1000, min 1, default 1000)
+    -o, --output <Directory> Directory for output
     --csv Export output to csv
     --json Export output to json
     --cli Export output to cli
