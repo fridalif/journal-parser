@@ -155,7 +155,7 @@ func main() {
 
 	repository := journalparser.NewJournalRepository(maxBatch)
 
-	err := os.Mkdir("./"+output, 0755)
+	err := os.Mkdir(exportSettings.OutputDirectory, 0755)
 	if err != nil {
 		fmt.Println("Failed to create output directory: ", err)
 		return
