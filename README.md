@@ -1,4 +1,4 @@
-# journal-parser
+# journal-parser v1.1.0
 
 ## Description
 
@@ -30,6 +30,9 @@ Flags:
     --csv Export output to csv
     --json Export output to json
     --cli Export output to cli
+    -fo, --files-offset <Number> Use this if program panics for skip files which you already parsed
+    -dbn, --db-name <Path> Name of existing database if needs append data in old DB
+    -sp, --skip-parsing - Flag for skipping parsing (only export)
 ```
 
 ## Examples
