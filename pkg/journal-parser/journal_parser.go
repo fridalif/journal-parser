@@ -40,9 +40,10 @@ type JournalParser struct {
 	skipParsing     bool
 	oldDatabase     string
 	filesOffset     int
+	filesLimit      int
 }
 
-func NewJournalParser(targets []string, partition int, output string, exporter ExporterI, repo JournalRepositoryI, skipParsing bool, oldDatabase string, filesOffset int) *JournalParser {
+func NewJournalParser(targets []string, partition int, output string, exporter ExporterI, repo JournalRepositoryI, skipParsing bool, oldDatabase string, filesOffset int, filesLimit int) *JournalParser {
 	return &JournalParser{
 		Targets:         targets,
 		Partition:       partition,
@@ -59,6 +60,7 @@ func NewJournalParser(targets []string, partition int, output string, exporter E
 		skipParsing:     skipParsing,
 		oldDatabase:     oldDatabase,
 		filesOffset:     filesOffset,
+		filesLimit:      filesLimit,
 	}
 }
 
@@ -134,6 +136,7 @@ func (jp *JournalParser) Parse() {
 	fileQueueStartLen := len(jp.FileQueue)
 	parsingBar := progressbar.Default(int64(fileQueueStartLen), "Parsing Files...")
 
+	// Skipping files before offset
 	for i := 0; i < jp.filesOffset; i++ {
 		jp.FileQueueMutex.Lock()
 		fileQueueLen := len(jp.FileQueue)
@@ -144,6 +147,10 @@ func (jp *JournalParser) Parse() {
 		jp.FileQueue = jp.FileQueue[1:]
 		jp.FileQueueMutex.Unlock()
 		parsingBar.Add(1)
+	}
+
+	if jp.filesLimit != 0 && len(jp.FileQueue) > jp.filesLimit {
+		jp.FileQueue = jp.FileQueue[:jp.filesLimit]
 	}
 
 	// Parse files

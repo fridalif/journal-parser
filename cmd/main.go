@@ -225,6 +225,12 @@ func main() {
 	}
 	fmt.Println("Output: ", exportSettings.OutputDirectory)
 	fmt.Println("Files Offset: ", filesOffset)
+	fmt.Println("Files Limit: ")
+	if filesLimit != 0 {
+		fmt.Println(filesLimit)
+	} else {
+		fmt.Println("unlimited")
+	}
 	if skipParsing {
 		fmt.Println("Skip parsing: true")
 	} else {
@@ -275,6 +281,7 @@ func main() {
 		skipParsing,
 		oldDatabase,
 		filesOffset,
+		filesLimit,
 	)
 	jp.Parse()
 }

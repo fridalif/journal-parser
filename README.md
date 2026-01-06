@@ -30,7 +30,8 @@ Flags:
     --csv Export output to csv
     --json Export output to json
     --cli Export output to cli
-    -fo, --files-offset <Number> Use this if program panics for skip files which you already parsed
+    -fo, --files-offset <Number> Use this for skip files which you already parsed
+    -fl, --files-limit <Number> Use this for limit files which you want parse
     -dbn, --db-name <Path> Name of existing database if needs append data in old DB
     -sp, --skip-parsing - Flag for skipping parsing (only export)
 ```
