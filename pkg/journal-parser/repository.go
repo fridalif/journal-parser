@@ -7,7 +7,7 @@ import (
 )
 
 type JournalRepositoryI interface {
-	ConnectToDB(outputDirectory string) error
+	ConnectToDB(outputDirectory string, oldDatabase string) error
 	CheckAliveAfterError() error
 	Close()
 	CreateTables() error
@@ -33,8 +33,12 @@ func (r *journalRepository) GetMaxBatchSize() int {
 	return r.MaxBatchSize
 }
 
-func (r *journalRepository) ConnectToDB(outputDirectory string) error {
-	db, err := sql.Open("sqlite3", "./"+outputDirectory+"/journal.db")
+func (r *journalRepository) ConnectToDB(outputDirectory string, oldDatabase string) error {
+	path := "./" + outputDirectory + "/journal.db"
+	if oldDatabase != "" {
+		path = oldDatabase
+	}
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return err
 	}

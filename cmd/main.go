@@ -34,6 +34,10 @@ func printHelpMessage() {
 	fmt.Println("  	--csv Export output to csv")
 	fmt.Println("	--json Export output to json")
 	fmt.Println("	--cli Export output to cli")
+	fmt.Println("	-fo, --files-offset <Number> Use this for skip files which you already parsed")
+	fmt.Println("	-fl, --files-limit <Number> Use this for limit files which you want parse")
+	fmt.Println("	-dbn, --db-name <Path> Name of existing database if needs append data in old DB")
+	fmt.Println("	-sp, --skip-parsing - Flag for skipping parsing (only export)")
 }
 
 func main() {
@@ -42,12 +46,20 @@ func main() {
 	targets := []string{}
 	partition := 0
 	outputDir := ""
+	oldDatabase := ""
+	skipParsing := false
 	exportSettings := journalparser.ExportSettings{
 		CSV:  false,
 		JSON: false,
 		CLI:  false,
 	}
+	filesOffset := 0
+	filesLimit := 0
 	maxBatch := 1000
+
+	/*
+		Parsing args
+	*/
 	for i := 0; i < argsLen; i++ {
 		if os.Args[i] == "--help" || os.Args[i] == "-h" {
 			printHelpMessage()
@@ -68,6 +80,9 @@ func main() {
 			i += 1
 			continue
 		}
+		if os.Args[i] == "--skip-parsing" || os.Args[i] == "-sp" {
+			skipParsing = true
+		}
 		if os.Args[i] == "--output" || os.Args[i] == "-o" {
 			if i+1 >= argsLen {
 				fmt.Println("Error: Missing argument for --output or -o")
@@ -80,6 +95,16 @@ func main() {
 				return
 			}
 			outputDir = os.Args[i+1]
+			i += 1
+			continue
+		}
+		if os.Args[i] == "--db-name" || os.Args[i] == "-dbn" {
+			if i+1 >= argsLen {
+				fmt.Println("Error: Missing argument for --db-name or -dbn")
+				printHelpMessage()
+				return
+			}
+			oldDatabase = os.Args[i+1]
 			i += 1
 			continue
 		}
@@ -101,6 +126,48 @@ func main() {
 				return
 			}
 			maxBatch = flagMaxBatch
+			i += 1
+			continue
+		}
+		if os.Args[i] == "--files-offset" || os.Args[i] == "-fo" {
+			if i+1 >= argsLen {
+				fmt.Println("Error: Missing argument for --files-offset or -fo")
+				printHelpMessage()
+				return
+			}
+			flagFilesOffset, err := strconv.Atoi(os.Args[i+1])
+			if err != nil {
+				fmt.Println("Error: Invalid argument for --files-offset or -fo")
+				printHelpMessage()
+				return
+			}
+			if filesOffset < 0 {
+				fmt.Println("Error: Invalid argument for --files-offset or -fo")
+				printHelpMessage()
+				return
+			}
+			filesOffset = flagFilesOffset
+			i += 1
+			continue
+		}
+		if os.Args[i] == "--files-limit" || os.Args[i] == "-fl" {
+			if i+1 >= argsLen {
+				fmt.Println("Error: Missing argument for --files-limit or -fl")
+				printHelpMessage()
+				return
+			}
+			flagFilesLimit, err := strconv.Atoi(os.Args[i+1])
+			if err != nil {
+				fmt.Println("Error: Invalid argument for --files-limit or -fl")
+				printHelpMessage()
+				return
+			}
+			if filesOffset <= 0 {
+				fmt.Println("Error: Invalid argument for --files-limit or -fl")
+				printHelpMessage()
+				return
+			}
+			filesLimit = flagFilesLimit
 			i += 1
 			continue
 		}
@@ -139,18 +206,41 @@ func main() {
 		}
 	}
 
-	if len(targets) == 0 {
+	if len(targets) == 0 && !skipParsing {
 		fmt.Println("Error: Missing argument for --target or -t")
 		printHelpMessage()
 		return
 	}
+
+	/*
+		Show Launch Mode
+	*/
 	output := time.Now().Format("output_2006-01-02_15-04-05")
 	exportSettings.OutputDirectory = path.Join(outputDir, output)
 	fmt.Println("Mode")
 	fmt.Println("Targets: ", strings.Join(targets, ", "))
 	fmt.Println("Partition: ", partition)
+	if oldDatabase != "" {
+		fmt.Println("OldDatabase: ", oldDatabase)
+	}
 	fmt.Println("Output: ", exportSettings.OutputDirectory)
+	fmt.Println("Files Offset: ", filesOffset)
+	fmt.Print("Files Limit: ")
+	if filesLimit != 0 {
+		fmt.Println(filesLimit)
+	} else {
+		fmt.Println("unlimited")
+	}
+	if skipParsing {
+		fmt.Println("Skip parsing: true")
+	} else {
+		fmt.Println("Skip parsing: false")
+	}
 	fmt.Println("")
+
+	/*
+		Start Functionality
+	*/
 	fmt.Println("Creating Database...")
 
 	repository := journalparser.NewJournalRepository(maxBatch)
@@ -161,7 +251,7 @@ func main() {
 		return
 	}
 
-	err = repository.ConnectToDB(exportSettings.OutputDirectory)
+	err = repository.ConnectToDB(exportSettings.OutputDirectory, oldDatabase)
 	if err != nil {
 		fmt.Println("Error connecting to database: ", err)
 		return
@@ -175,8 +265,23 @@ func main() {
 		return
 	}
 	fmt.Println("SQL Tables created")
-	exporter := journalparser.NewExporter(exportSettings.CSV, exportSettings.JSON, exportSettings.CLI, exportSettings.OutputDirectory)
+	exporter := journalparser.NewExporter(
+		exportSettings.CSV,
+		exportSettings.JSON,
+		exportSettings.CLI,
+		exportSettings.OutputDirectory,
+	)
 	fmt.Println("Starting parsing...")
-	jp := journalparser.NewJournalParser(targets, partition, exportSettings.OutputDirectory, exporter, repository)
+	jp := journalparser.NewJournalParser(
+		targets,
+		partition,
+		exportSettings.OutputDirectory,
+		exporter,
+		repository,
+		skipParsing,
+		oldDatabase,
+		filesOffset,
+		filesLimit,
+	)
 	jp.Parse()
 }
