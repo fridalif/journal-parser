@@ -34,10 +34,10 @@ func printHelpMessage() {
 	fmt.Println("  	--csv Export output to csv")
 	fmt.Println("	--json Export output to json")
 	fmt.Println("	--cli Export output to cli")
-	fmt.Println("   -fo, --files-offset <Number> Use this for skip files which you already parsed")
-	fmt.Println("   -fl, --files-limit <Number> Use this for limit files which you want parse")
-	fmt.Println("   -dbn, --db-name <Path> Name of existing database if needs append data in old DB")
-	fmt.Println("   -sp, --skip-parsing - Flag for skipping parsing (only export)")
+	fmt.Println("	-fo, --files-offset <Number> Use this for skip files which you already parsed")
+	fmt.Println("	-fl, --files-limit <Number> Use this for limit files which you want parse")
+	fmt.Println("	-dbn, --db-name <Path> Name of existing database if needs append data in old DB")
+	fmt.Println("	-sp, --skip-parsing - Flag for skipping parsing (only export)")
 }
 
 func main() {
@@ -225,7 +225,7 @@ func main() {
 	}
 	fmt.Println("Output: ", exportSettings.OutputDirectory)
 	fmt.Println("Files Offset: ", filesOffset)
-	fmt.Println("Files Limit: ")
+	fmt.Print("Files Limit: ")
 	if filesLimit != 0 {
 		fmt.Println(filesLimit)
 	} else {
