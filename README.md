@@ -1,5 +1,8 @@
 # journal-parser v1.1.0
 
+
+***Project continuing developing in light-parser repo***
+
 ## Description
 
 Crossplatform tool for recursive parsing Linux journals directories and files with export in different file formats
